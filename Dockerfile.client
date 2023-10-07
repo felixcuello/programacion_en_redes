@@ -1,5 +1,0 @@
-FROM debian:bullseye
-
-COPY . /app
-
-WORKDIR /app

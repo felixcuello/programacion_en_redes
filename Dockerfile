@@ -6,7 +6,3 @@ RUN apt-get install -y gcc make
 COPY . /app
 
 WORKDIR /app
-
-RUN make clean && make tp
-
-CMD ["./server", "8080"]

@@ -1,17 +1,17 @@
 version: '3'
 
 services:
-  tp_server:
+  server:
     build:
       context: .
-      dockerfile: Dockerfile.server
+      dockerfile: Dockerfile
     ports:
       - 8080:8080
     volumes:
       - .:/app
-  tp_client:
+  client:
     build:
       context: .
-      dockerfile: Dockerfile.client
+      dockerfile: Dockerfile
     volumes:
       - .:/app
