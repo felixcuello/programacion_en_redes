@@ -22,6 +22,7 @@ int main(int argc, char** argv) {
   }
 
   struct sockaddr_in server_addr;
+  bzero(&server_addr, sizeof(server_addr));
   server_addr.sin_family = AF_INET;
   server_addr.sin_port = htons(port);
   server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -35,9 +36,9 @@ int main(int argc, char** argv) {
     printf("Error: listen()\n");
     return 1;
   }
-  printf(">>> Server iniciado en el puerto %d\n", port);
+  printf("server>> Server iniciado en el puerto %d\n", port);
 
-  printf(">>> Esperando cliente\n");
+  printf("server>> Esperando cliente\n");
   struct sockaddr_in client_addr;
   socklen_t client_addr_len = sizeof(client_addr);
   int client_socket = accept(server_socket, (struct sockaddr*)&client_addr, &client_addr_len);
@@ -46,8 +47,9 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  printf(">>> Cliente conectado\n");
+  printf("server>> Cliente conectado\n");
   char buffer[256];
+  bzero(buffer, sizeof(buffer));
   while(1) {
     int bytes_read = read(client_socket, buffer, sizeof(buffer));
 
@@ -57,12 +59,13 @@ int main(int argc, char** argv) {
     }
 
     if(bytes_read == 0) {
-      printf(">>> Cliente desconectado\n");
+      printf("server>> Cliente desconectado\n");
       break;
     }
 
     // comparar buffer con PING y devolver PONG
     if(strncmp(buffer, "PING", 4) == 0) {
+      printf("server>> enviando PONG\n");
       write(client_socket, "PONG\n", 5);
     }
 
@@ -75,7 +78,7 @@ int main(int argc, char** argv) {
   }
 
   close(server_socket);
-  printf(">>> Server finalizado\n");
+  printf("server>> Server finalizado\n");
 
   return 0;
 }
