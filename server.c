@@ -1,11 +1,47 @@
-#include <stdio.h>      // for printf
-#include <stdlib.h>     // for atoi
-#include <sys/socket.h> // for socket, bind, listen, accept
-#include <netinet/in.h> // for sockaddr_in
-#include <unistd.h>     // for write
-#include <string.h>     // for strncmp
+#include <stdio.h>      // printf
+#include <stdlib.h>     // atoi
+#include <sys/socket.h> // socket, bind, listen, accept
+#include <netinet/in.h> // sockaddr_in
+#include <unistd.h>     // write
+#include <string.h>     // strncmp
+#include <pthread.h>    // pthread_creat
 
 #define LISTEN_QUEUE_SIZE 1
+
+void atender_cliente(int* socket) {
+  int client_socket = *socket;
+  //pthread_t thread_id = pthread_self();
+
+  printf("server>> Cliente conectado (socket: %d)\n", client_socket);
+  char buffer[256];
+  bzero(buffer, sizeof(buffer));
+  while(1) {
+    int bytes_read = read(client_socket, buffer, sizeof(buffer));
+
+    if(bytes_read < 0) {
+      printf("Error!\n");
+      break;
+    }
+
+    if(bytes_read == 0) {
+      printf("server>> Cliente desconectado\n");
+      break;
+    }
+
+    // comparar buffer con PING y devolver PONG
+    if(strncmp(buffer, "PING", 4) == 0) {
+      printf("server >> enviando PONG\n");
+      write(client_socket, "PONG\n", 5);
+    }
+
+    // comparar buffer con QUIT y cerrar el socket
+    if(strncmp(buffer, "QUIT", 4) == 0) {
+      write(client_socket, "BYEBYE\n", 7);
+      close(client_socket); // no chequear errores, porque se esta yendo
+      break;
+    }
+  }
+}
 
 int main(int argc, char** argv) {
   if(argc != 2) {
@@ -38,45 +74,22 @@ int main(int argc, char** argv) {
   }
   printf("server>> Server iniciado en el puerto %d\n", port);
 
-  printf("server>> Esperando cliente\n");
-  struct sockaddr_in client_addr;
-  socklen_t client_addr_len = sizeof(client_addr);
-  int client_socket = accept(server_socket, (struct sockaddr*)&client_addr, &client_addr_len);
-  if(client_socket < 0) {
-    printf("Error: accept()\n");
-    return 1;
-  }
-
-  printf("server>> Cliente conectado\n");
-  char buffer[256];
-  bzero(buffer, sizeof(buffer));
   while(1) {
-    int bytes_read = read(client_socket, buffer, sizeof(buffer));
+    printf("server>> Esperando cliente\n");
+    struct sockaddr_in client_addr;
+    socklen_t client_addr_len = sizeof(client_addr);
+    int client_socket = accept(server_socket, (struct sockaddr*)&client_addr, &client_addr_len);
 
-    if(bytes_read < 0) {
-      printf("Error!\n");
-      break;
+    if(client_socket < 0) {
+      printf("Error: accept()\n");
+      return 1;
     }
 
-    if(bytes_read == 0) {
-      printf("server>> Cliente desconectado\n");
-      break;
-    }
-
-    // comparar buffer con PING y devolver PONG
-    if(strncmp(buffer, "PING", 4) == 0) {
-      printf("server>> enviando PONG\n");
-      write(client_socket, "PONG\n", 5);
-    }
-
-    // comparar buffer con QUIT y cerrar el socket
-    if(strncmp(buffer, "QUIT", 4) == 0) {
-      write(client_socket, "BYEBYE\n", 7);
-      close(client_socket); // no chequear errores, porque se esta yendo
-      break;
-    }
+    pthread_t thread = NULL;
+    pthread_create(&thread, NULL, (void*)atender_cliente, (void*)&client_socket);
   }
 
+  // Aca no va a llegar nunca
   close(server_socket);
   printf("server>> Server finalizado\n");
 

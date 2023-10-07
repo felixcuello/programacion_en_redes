@@ -31,10 +31,12 @@ tarea1: tarea1.c
 clean_server:
 	@echo "🧹 Cleaning Server 🧹"
 	@rm -f server
+	@rm -rf server.DSYM
 
 clean_client:
 	@echo "🧹 Cleaning Client 🧹"
 	@rm -rf client
+	@rm -rf client.DSYM
 
 clean: clean_server clean_client
 
