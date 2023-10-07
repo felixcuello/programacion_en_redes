@@ -3,20 +3,46 @@
 ## Introduccion
 
 ```
+    TCP Server                                         TCP Client
+
+1   socket()
+
+2   bind()
+
+3   listen()
+
+4   accept()
+
+5                                                      socket()
+
+6            <---------------------------------------  connect()
+
+7            <---------------------------------------  write()
+
+8   read()
+
+9   write()  --------------------------------------->  read()
+
+10  close()  --------------------------------------->  read()
+
+11                                                     close()
+
 ```
 
+## Iteracion 0
+Se desarrollara la iteracion 1, sin multithread.
 
 
 ## Iteracion 1
 
 Se desarrollará la primera versión del webserver. Este proceso será un programa que se levantará
-porconsola con la posibilidad de recibir ciertos parámetros como el puerto de escucha. El servidor
+por consola con la posibilidad de recibir ciertos parámetros como el puerto de escucha. El servidor
 será unproceso multithread, por lo tanto cada request recibido deberá atenderse en un nuevo thread.
 El mismodeberá finalizar al terminar de atender el pedido, liberando todos los recursos asociados.
 Se utilizará elsoporte de la librería pthreads. Los threads serán creados en modo detached (ver
 man pthread_create). Enparalelo, también se desarrollará un pequeño proceso cliente cuya única
 función será la de establecer unaconexión TCP al webserver. Enviará un mensaje con el string
-“PING” y el server responderá con el string“PONG”. Al recibir la respuesta la imprimirá por
+“PING” y el server responderá con el string “PONG”. Al recibir la respuesta la imprimirá por
 consola y finalizará adecuadamente.
 
 

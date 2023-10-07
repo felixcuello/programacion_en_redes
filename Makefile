@@ -21,4 +21,13 @@ clean:
 	rm -rf tarea1 *.dSYM       # Tarea1
 	rm -f server client        # Tarea2
 
+shell:
+	docker compose run -ti tp_server /bin/bash
+
+client_shell:
+	docker compose run -ti tp_client /bin/bash
+
+build:
+	docker compose build
+
 .PHONY: clean
