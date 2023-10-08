@@ -1,19 +1,23 @@
-#include <stdio.h>      // printf
-#include <stdlib.h>     // atoi
-#include <sys/socket.h> // socket, bind, listen, accept
-#include <netinet/in.h> // sockaddr_in
-#include <unistd.h>     // write
-#include <string.h>     // strncmp
-#include <pthread.h>    // pthread_creat
+#include <stdio.h>       // printf
+#include <stdlib.h>      // atoi
+#include <sys/socket.h>  // socket, bind, listen, accept
+#include <sys/syscall.h> // __NR_gettid
+#include <netinet/in.h>  // sockaddr_in
+#include <unistd.h>      // write
+#include <string.h>      // strncmp
+#include <pthread.h>     // pthread_creat
+#include <sys/types.h>
 
 #define LISTEN_QUEUE_SIZE 1
 
 void atender_cliente(int* socket) {
   int client_socket = *socket;
-  //pthread_t thread_id = pthread_self();
+  pthread_t thread_id = pthread_self();
+  printf("thread -> %lu\n", (unsigned long)thread_id);
 
   printf("server>> Cliente conectado (socket: %d)\n", client_socket);
   char buffer[256];
+
   bzero(buffer, sizeof(buffer));
   while(1) {
     int bytes_read = read(client_socket, buffer, sizeof(buffer));

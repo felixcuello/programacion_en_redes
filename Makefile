@@ -1,5 +1,5 @@
 CC=gcc                    # Compilador
-CFLAGS=-g -Wall						# Deugger + All warnings
+CFLAGS=-g -Wall	-pthread	# Deugger + All warnings
 LDFLAGS=-lcurses          # Bibliotecas que tengo que linkear
 
 all:
