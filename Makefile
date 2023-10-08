@@ -10,6 +10,7 @@ all:
 	@echo " make server                      # Compila solo el server"
 	@echo " make client                      # Compila solo el client"
 	@echo " make clean                       # Limpia los binarios"
+	@echo " make debug                       # Arranca el debugger del server"
 	@echo " make shell                       # Ingresa al shell del server"
 	@echo " make client_shell                # Ingresa al shell del client"
 	@echo " make [SERVICE=service] build     # Construye las imagenes de docker"
@@ -53,5 +54,8 @@ build:
 up:
 	@echo "🚀 Starting 🚀"
 	@docker compose up --service-ports $(SERVICE)
+
+debug: tp
+	@lldb ./server
 
 .PHONY: clean
