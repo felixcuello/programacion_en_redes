@@ -4,12 +4,18 @@
 #include <netinet/in.h> // sockaddr_in
 #include <unistd.h>     // write
 #include <string.h>     // strncmp
-#include <pthread.h>    // pthread_creat
+#include <fcntl.h>      // O_NONBLOCK
 
-#define LISTEN_QUEUE_SIZE 1
+#define TRUE                     1   // Esto es para que quede más lindo cosas como while(TRUE)
+#define LISTEN_QUEUE_SIZE        2   // Maxima cola de clientes que vamos a aceptar
+#define MAX_CONNECTIONS        100   // Cantidad máxima de conexiones que vamos a aceptar
+#define NUMBER_OF_SYSTEM_FDS     3   // STDIN, STDOUT, STDERR
+#define READ_BUFFER_SIZE       256   // Tamaño del buffer de lectura
+#define EXIT_VALUE             666
 
 // Forward declarations
-void atender_cliente(int* socket);
+int atender_cliente(int socket);
+int aceptar_conexion(int socket); // Acepta una nueva conexión y devuelve el nuevo FD
 
 int main(int argc, char** argv) {
   if(argc != 2) {
@@ -31,6 +37,23 @@ int main(int argc, char** argv) {
   server_addr.sin_port = htons(port);
   server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
 
+  setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &(int){1}, 1);
+  fcntl(server_socket, F_SETFL, O_NONBLOCK);                           // Non blocking
+
+  // get socket options
+  unsigned int bufferSize = 0;
+  unsigned int bufferSizeLenght = sizeof(bufferSize);
+
+  getsockopt(server_socket, SOL_SOCKET, SO_RCVBUF, &bufferSize, &bufferSizeLenght);
+  printf("server>> recv buffer size: %u\n", bufferSize);
+
+  getsockopt(server_socket, SOL_SOCKET, SO_SNDBUF, &bufferSize, &bufferSizeLenght);
+  printf("server>> send buffer size: %u\n", bufferSize);
+
+  getsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &bufferSize, &bufferSizeLenght);
+  printf("server>> reuseaddr: %u\n", bufferSize);
+
+
   if(bind(server_socket, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
     printf("Error: bind()\n");
     return 1;
@@ -40,21 +63,56 @@ int main(int argc, char** argv) {
     printf("Error: listen()\n");
     return 1;
   }
-  printf("server>> Server iniciado en el puerto %d\n", port);
 
-  while(1) {
-    printf("server>> Esperando cliente\n");
-    struct sockaddr_in client_addr;
-    socklen_t client_addr_len = sizeof(client_addr);
-    int client_socket = accept(server_socket, (struct sockaddr*)&client_addr, &client_addr_len);
 
-    if(client_socket < 0) {
-      printf("Error: accept()\n");
-      return 1;
+  printf("========================================================\n");
+  printf("  SERVER INICIADO (escuchando en el puerto: %d)\n", port);
+  printf("========================================================\n");
+
+
+  fd_set readfds;                   // Set de file descriptors de lectura (o nuevos)
+  FD_ZERO(&readfds);                // Inicializo el set de file descriptors
+
+  fd_set tempreadfds;
+  FD_SET(server_socket, &readfds);  // Agrego el socket del server al set
+
+  struct timeval timeout;           // Timeout para el select
+  timeout.tv_sec = 2;
+  timeout.tv_usec = 500000;
+
+  int max_fd = server_socket;
+  while(TRUE) {
+    tempreadfds = readfds;
+
+    // Ejemplo: select(nfds, readfds, writefds, errorfds, &timeout);
+    int fd_ready = select(max_fd + 1, &tempreadfds, NULL, NULL, &timeout);
+
+    if(fd_ready == -1) { printf("Error: select()\n"); return 1; }
+
+    // Arranco de 3, para no monitorear STDIN, STDOUT o STDERR
+    for(int candidate_fd=NUMBER_OF_SYSTEM_FDS; candidate_fd <= max_fd; candidate_fd++) {
+      if(!FD_ISSET(candidate_fd, &tempreadfds)) continue; // En este file descriptor no hay nada nuevo
+
+      printf("server>> Evento en el file descriptor %d\n", candidate_fd);
+
+      if(candidate_fd == server_socket) {
+        // Si es el server_socket => hay una nueva conexión
+        int new_fd = aceptar_conexion(server_socket);
+        FD_SET(new_fd, &readfds);
+
+        max_fd = new_fd > max_fd ? new_fd : max_fd;
+      } else {
+        // DESCONEXION!, el cliente se desconectó o hubo un error
+        if(atender_cliente(candidate_fd) < 0) {
+          printf("server>> Cliente desconectado  (file_descriptor %d)\n", candidate_fd);
+
+          FD_CLR(candidate_fd, &readfds);        // lo sacamos del set de file descriptors de lectura
+          close(candidate_fd);                   // cerramos el file descriptor
+          if(candidate_fd == max_fd) max_fd--;   // Cambiamos el max_fd solo si fue el que se desconetó
+          continue;                              // Siga, siga lamolina
+        }
+      }
     }
-
-    pthread_t thread = NULL;
-    pthread_create(&thread, NULL, (void*)atender_cliente, (void*)&client_socket);
   }
 
   // Aca no va a llegar nunca
@@ -64,69 +122,38 @@ int main(int argc, char** argv) {
   return 0;
 }
 
-
-
 //-----------------------------------------------------------------------------
-// Dado un socket atiendo a un cliente
+//  Helper functions
 //-----------------------------------------------------------------------------
-void atender_cliente(int* socket) {
-  int client_socket = *socket;
-  //pthread_t thread_id = pthread_self();
 
-  printf("server>> Cliente conectado (socket: %d)\n", client_socket);
-  char buffer[256];
-  bzero(buffer, sizeof(buffer));
-  while(1) {
-    int bytes_read = read(client_socket, buffer, sizeof(buffer));
+// Acepta una nueva conexión y devuelve el FD
+int aceptar_conexion(int socket) {
+  struct sockaddr client_addr;
+  socklen_t client_addr_len;
 
-    if(bytes_read < 0) {
-      printf("Error!\n");
-      break;
-    }
-
-    if(bytes_read == 0) {
-      printf("server>> Cliente desconectado\n");
-      break;
-    }
-
-    // comparar buffer con PING y devolver PONG
-    if(strncmp(buffer, "PING", 4) == 0) {
-      printf("server >> enviando PONG\n");
-      write(client_socket, "PONG\n", 5);
-    }
-
-    // comparar buffer con QUIT y cerrar el socket
-    if(strncmp(buffer, "QUIT", 4) == 0) {
-      write(client_socket, "BYEBYE\n", 7);
-      close(client_socket); // no chequear errores, porque se esta yendo
-      break;
-    }
-  }
+  return accept(socket, &client_addr, &client_addr_len);
 }
 
+// Atiende al cliente
+// E implementa el protocolo de comunicación
+int atender_cliente(int socket) {
+  char buffer[READ_BUFFER_SIZE];
+  bzero(buffer, READ_BUFFER_SIZE);
 
-/*
-      TCP Server                                         TCP Client [telnet]
+  ssize_t bytes_read = read(socket, &buffer, READ_BUFFER_SIZE);
+  if(bytes_read <= 0) return -1;
 
-√ 1   socket()
+  printf("server>> Recibido: %s", buffer);  // Este no lleva "\n" al final porque tenemos el \n en el buffer
 
-√ 2   bind()
+  // PROTOCOLO: Si recibo QUIT hay que desconectar y decir "Chau chau!!"
+  if(strncmp(buffer, "quit", 4) == 0 || strncmp(buffer, "QUIT", 4) == 0) {
+    write(socket, "Chau chau!!\n", 12);
+    return -1;
+  }
 
-√ 3   listen()
+  // PROTOCOLO: Si recibo PING devuelvo PONG
+  if(strncmp(buffer, "ping", 4) == 0 || strncmp(buffer, "PING", 4) == 0)
+    write(socket, "PONG\n", 5);
 
-√ 4   accept()
-
-5                                                      socket()
-
-6            <---------------------------------------  connect()
-
-7            <---------------------------------------  write()
-
-8   read()
-
-9   write()  --------------------------------------->  read()
-
-10  close()  --------------------------------------->  read()
-
-11                                                     close()
-*/
+  return 0;
+}
