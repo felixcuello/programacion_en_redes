@@ -1,5 +1,15 @@
 # Programación en Redes - Trabajo Práctico 2023
 
+## Notas importantes
+
+**DEBUG MacOS**
+
+Para poder debuggear en MacOS hay que usar `lldb` de la siguiente forma:
+
+```
+lldb <binario>
+```
+
 ## Introduccion
 
 ```

@@ -17,13 +17,16 @@ all:
 	@echo " make [SERVICE=service] up        # Levanta los servicios de docker"
 	@echo "-----------------------------------------------------------------------"
 
-tp: clean client server
+tp: clean client alive_client server
 
 server: clean_server
 	$(CC) $(CFLAGS) server.c -o server
 
 client: clean_client
 	$(CC) $(CFLAGS) client.c -o client
+
+alive_client: clean_alive_client
+	$(CC) $(CFLAGS) alive_client.c -o alive_client
 
 # Tarea 1 -> Ver los comentarios adentro de tarea1.c
 tarea1: tarea1.c
@@ -41,6 +44,11 @@ clean_client:
 	@echo "🧹 Cleaning Client 🧹"
 	@rm -rf client
 	@rm -rf client.DSYM
+
+clean_alive_client:
+	@echo "🧹 Cleaning Alive Client 🧹"
+	@rm -rf alive_client
+	@rm -rf alive_client.DSYM
 
 clean: clean_server clean_client
 

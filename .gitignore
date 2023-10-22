@@ -2,3 +2,5 @@ server
 server.dSYM
 client
 client.dSYM
+alive_client
+alive_client.dSYM
