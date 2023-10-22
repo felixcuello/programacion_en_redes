@@ -9,6 +9,7 @@ all:
 	@echo " make tp                          # Compila client + server"
 	@echo " make server                      # Compila solo el server"
 	@echo " make client                      # Compila solo el client"
+	@echo " make udp_ping                    # Envia datos al server UDP"
 	@echo " make clean                       # Limpia los binarios"
 	@echo " make shell                       # Ingresa al shell del server"
 	@echo " make client_shell                # Ingresa al shell del client"
@@ -27,6 +28,9 @@ client: clean_client
 # Tarea 1 -> Ver los comentarios adentro de tarea1.c
 tarea1: tarea1.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -o tarea1 tarea1.c
+
+udp_ping:
+	@echo "ping" | nc -u -w 1 127.0.0.1 4321
 
 clean_server:
 	@echo "🧹 Cleaning Server 🧹"

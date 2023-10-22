@@ -1,35 +1,49 @@
+#include <arpa/inet.h>  // inet_pton
+#include <fcntl.h>      // O_NONBLOCK
+#include <netinet/in.h> // sockaddr_in
+#include <pthread.h>    // pthread_create
 #include <stdio.h>      // printf
 #include <stdlib.h>     // atoi
-#include <sys/socket.h> // socket, bind, listen, accept
-#include <netinet/in.h> // sockaddr_in
-#include <unistd.h>     // write
 #include <string.h>     // strncmp
-#include <fcntl.h>      // O_NONBLOCK
+#include <sys/socket.h> // socket, bind, listen, accept
+#include <unistd.h>     // write
 
+
+//   Algunas constantes para evitar hardcodear valores en el código
+// ----------------------------------------------------------------------------
 #define TRUE                     1   // Esto es para que quede más lindo cosas como while(TRUE)
 #define LISTEN_QUEUE_SIZE        2   // Maxima cola de clientes que vamos a aceptar
 #define MAX_CONNECTIONS        100   // Cantidad máxima de conexiones que vamos a aceptar
 #define NUMBER_OF_SYSTEM_FDS     3   // STDIN, STDOUT, STDERR
 #define READ_BUFFER_SIZE       256   // Tamaño del buffer de lectura
-#define EXIT_VALUE             666
+#define HEARTBEAT_UDP_PORT    4321   // Puerto usado para el heartbeat
 
-// Forward declarations
+
+//   Forward declarations
+// ----------------------------------------------------------------------------
 int atender_cliente(int socket);
 int aceptar_conexion(int socket); // Acepta una nueva conexión y devuelve el nuevo FD
+void udp_heartbeat();
 
+
+//   Main server code
+// ----------------------------------------------------------------------------
 int main(int argc, char** argv) {
   if(argc != 2) {
     printf("Usage: %s <port>\n", argv[0]);
     return 1;
   }
 
-  int port = atoi(argv[1]);
+  pthread_t thread = NULL;
+  pthread_create(&thread, NULL, (void *)udp_heartbeat, NULL);
 
   int server_socket = socket(AF_INET, SOCK_STREAM, 0);
   if(server_socket < 0) {
     printf("Error: socket()\n");
     return 1;
   }
+
+  int port = atoi(argv[1]);
 
   struct sockaddr_in server_addr;
   bzero(&server_addr, sizeof(server_addr));
@@ -55,7 +69,7 @@ int main(int argc, char** argv) {
 
 
   if(bind(server_socket, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
-    printf("Error: bind()\n");
+    printf("Error: bind() . ¿Ya se está usando la dirección IP?\n");
     return 1;
   }
 
@@ -122,11 +136,14 @@ int main(int argc, char** argv) {
   return 0;
 }
 
+
 //-----------------------------------------------------------------------------
 //  Helper functions
 //-----------------------------------------------------------------------------
 
-// Acepta una nueva conexión y devuelve el FD
+
+//   Acepta una nueva conexión y devuelve el FD
+// ----------------------------------------------------------------------------
 int aceptar_conexion(int socket) {
   struct sockaddr client_addr;
   socklen_t client_addr_len;
@@ -134,8 +151,9 @@ int aceptar_conexion(int socket) {
   return accept(socket, &client_addr, &client_addr_len);
 }
 
-// Atiende al cliente
-// E implementa el protocolo de comunicación
+//   Atiende al cliente
+//   Implementa el protocolo de comunicación
+// ----------------------------------------------------------------------------
 int atender_cliente(int socket) {
   char buffer[READ_BUFFER_SIZE];
   bzero(buffer, READ_BUFFER_SIZE);
@@ -156,4 +174,50 @@ int atender_cliente(int socket) {
     write(socket, "PONG\n", 5);
 
   return 0;
+}
+
+//   Arranca un thread que responde a los pings en e puerto 4321
+// ----------------------------------------------------------------------------
+void udp_heartbeat() {
+  int udp_server_fd = socket(AF_INET, SOCK_DGRAM, 0);
+  if(udp_server_fd < 0) {
+    printf("server_udp_heatbeat>> ERROR, no pude crear el socket para el heartbeat\n");
+    exit(-1);
+  }
+
+  struct sockaddr_in udp_server_addr;
+  bzero(&udp_server_addr, sizeof(udp_server_addr));
+
+  udp_server_addr.sin_family = AF_INET;
+  udp_server_addr.sin_port = htons(HEARTBEAT_UDP_PORT);
+  udp_server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+
+  if(bind(udp_server_fd, (struct sockaddr*)&udp_server_addr, sizeof(udp_server_addr)) < 0) {
+    printf("server_udp_heartbeat>> ERROR, no pude asignar la dirección. ¿Ya está siendo usada la dirección IP?\n");
+    exit(-2);
+  }
+
+  printf("server_udp_heatbeat>> INICIADO\n");
+
+  while(TRUE) {
+    struct sockaddr_in client_addr;
+    socklen_t client_addr_len = sizeof(client_addr);
+    char buffer[READ_BUFFER_SIZE];
+
+    ssize_t bytes_read = recvfrom(udp_server_fd,                     // File descriptor del socket del server
+                                  buffer,                            // Buffer de lectura
+                                  READ_BUFFER_SIZE,                  // Tamaño del buffer de lectura
+                                  0,                                 // Estos son flags (pero no los usamos)
+                                  (struct sockaddr*)&client_addr,    // Datos del cliente
+                                  &client_addr_len);                 // Tamaño de la estructura que almacena los datos del cliente
+    if(bytes_read <= 0) {
+      printf("server_udp_heatbeat>> INICIADO\n");
+      continue; // No hubo nada para leer
+    }
+
+    printf("server_udp_heartbeat>> Recibido %s", buffer);
+    printf("server_udp_heartbeat>> Sending ALIVE\n");
+
+    sendto(udp_server_fd, "ALIVE\n", 6, 0, (struct sockaddr*)&client_addr, client_addr_len);
+  }
 }
