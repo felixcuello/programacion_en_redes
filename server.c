@@ -8,40 +8,8 @@
 
 #define LISTEN_QUEUE_SIZE 1
 
-void atender_cliente(int* socket) {
-  int client_socket = *socket;
-  //pthread_t thread_id = pthread_self();
-
-  printf("server>> Cliente conectado (socket: %d)\n", client_socket);
-  char buffer[256];
-  bzero(buffer, sizeof(buffer));
-  while(1) {
-    int bytes_read = read(client_socket, buffer, sizeof(buffer));
-
-    if(bytes_read < 0) {
-      printf("Error!\n");
-      break;
-    }
-
-    if(bytes_read == 0) {
-      printf("server>> Cliente desconectado\n");
-      break;
-    }
-
-    // comparar buffer con PING y devolver PONG
-    if(strncmp(buffer, "PING", 4) == 0) {
-      printf("server >> enviando PONG\n");
-      write(client_socket, "PONG\n", 5);
-    }
-
-    // comparar buffer con QUIT y cerrar el socket
-    if(strncmp(buffer, "QUIT", 4) == 0) {
-      write(client_socket, "BYEBYE\n", 7);
-      close(client_socket); // no chequear errores, porque se esta yendo
-      break;
-    }
-  }
-}
+// Forward declarations
+void atender_cliente(int* socket);
 
 int main(int argc, char** argv) {
   if(argc != 2) {
@@ -95,6 +63,47 @@ int main(int argc, char** argv) {
 
   return 0;
 }
+
+
+
+//-----------------------------------------------------------------------------
+// Dado un socket atiendo a un cliente
+//-----------------------------------------------------------------------------
+void atender_cliente(int* socket) {
+  int client_socket = *socket;
+  //pthread_t thread_id = pthread_self();
+
+  printf("server>> Cliente conectado (socket: %d)\n", client_socket);
+  char buffer[256];
+  bzero(buffer, sizeof(buffer));
+  while(1) {
+    int bytes_read = read(client_socket, buffer, sizeof(buffer));
+
+    if(bytes_read < 0) {
+      printf("Error!\n");
+      break;
+    }
+
+    if(bytes_read == 0) {
+      printf("server>> Cliente desconectado\n");
+      break;
+    }
+
+    // comparar buffer con PING y devolver PONG
+    if(strncmp(buffer, "PING", 4) == 0) {
+      printf("server >> enviando PONG\n");
+      write(client_socket, "PONG\n", 5);
+    }
+
+    // comparar buffer con QUIT y cerrar el socket
+    if(strncmp(buffer, "QUIT", 4) == 0) {
+      write(client_socket, "BYEBYE\n", 7);
+      close(client_socket); // no chequear errores, porque se esta yendo
+      break;
+    }
+  }
+}
+
 
 /*
       TCP Server                                         TCP Client [telnet]
