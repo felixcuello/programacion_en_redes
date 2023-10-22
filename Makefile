@@ -8,13 +8,10 @@ all:
 	@echo "-----------------------------------------------------------------------"
 	@echo " make tp                          # Compila client + server"
 	@echo " make server                      # Compila solo el server"
+	@echo " make tarea1                      # Compila la tarea1"
 	@echo " make client                      # Compila solo el client"
 	@echo " make udp_ping                    # Envia datos al server UDP"
 	@echo " make clean                       # Limpia los binarios"
-	@echo " make shell                       # Ingresa al shell del server"
-	@echo " make client_shell                # Ingresa al shell del client"
-	@echo " make [SERVICE=service] build     # Construye las imagenes de docker"
-	@echo " make [SERVICE=service] up        # Levanta los servicios de docker"
 	@echo "-----------------------------------------------------------------------"
 
 tp: clean client alive_client server
@@ -32,9 +29,6 @@ alive_client: clean_alive_client
 tarea1: tarea1.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -o tarea1 tarea1.c
 
-udp_ping:
-	@echo "ping" | nc -u -w 1 127.0.0.1 4321
-
 clean_server:
 	@echo "🧹 Cleaning Server 🧹"
 	@rm -f server
@@ -50,20 +44,6 @@ clean_alive_client:
 	@rm -rf alive_client
 	@rm -rf alive_client.DSYM
 
-clean: clean_server clean_client
-
-shell:
-	@docker compose run --rm --service-ports -ti server /bin/bash
-
-client_shell:
-	@docker compose run --rm --service-ports -ti client /bin/bash
-
-build:
-	@echo "🚀 Building 🚀"
-	@docker compose build --no-cache $(SERVICE)
-
-up:
-	@echo "🚀 Starting 🚀"
-	@docker compose up --service-ports $(SERVICE)
+clean: clean_server clean_client clean_alive_client
 
 .PHONY: clean
