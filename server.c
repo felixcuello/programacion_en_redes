@@ -11,20 +11,21 @@
 
 //   Algunas constantes para evitar hardcodear valores en el código
 // ----------------------------------------------------------------------------
-#define TRUE                     1   // Esto es para que quede más lindo cosas como while(TRUE)
-#define LISTEN_QUEUE_SIZE        2   // Maxima cola de clientes que vamos a aceptar
-#define MAX_CONNECTIONS        100   // Cantidad máxima de conexiones que vamos a aceptar
-#define NUMBER_OF_SYSTEM_FDS     3   // STDIN, STDOUT, STDERR
-#define READ_BUFFER_SIZE       256   // Tamaño del buffer de lectura
-#define HEARTBEAT_UDP_PORT    4321   // Puerto usado para el heartbeat
+#define TRUE                       1   // Esto es para que quede más lindo cosas como while(TRUE)
+#define LISTEN_QUEUE_SIZE          2   // Maxima cola de clientes que vamos a aceptar
+#define MAX_CONNECTIONS          100   // Cantidad máxima de conexiones que vamos a aceptar
+#define NUMBER_OF_SYSTEM_FDS       3   // STDIN, STDOUT, STDERR
+#define READ_BUFFER_SIZE        1024   // Tamaño del buffer de lectura
+#define RESPONSE_BUFFER_SIZE  100000   // Tamaño del buffer de respuesta (1MB)
+#define HEARTBEAT_UDP_PORT      4321   // Puerto usado para el heartbeat
 
 
 //   Forward declarations
 // ----------------------------------------------------------------------------
-int atender_cliente(int socket);
+int protocolo_http(int socket);
 int aceptar_conexion(int socket); // Acepta una nueva conexión y devuelve el nuevo FD
 void udp_heartbeat();
-
+long leer_archivo(char *filename, char **file_content);
 
 //   Main server code
 // ----------------------------------------------------------------------------
@@ -117,7 +118,7 @@ int main(int argc, char** argv) {
         max_fd = new_fd > max_fd ? new_fd : max_fd;
       } else {
         // DESCONEXION!, el cliente se desconectó o hubo un error
-        if(atender_cliente(candidate_fd) < 0) {
+        if(protocolo_http(candidate_fd) < 0) {
           printf("server>> Cliente desconectado  (file_descriptor %d)\n", candidate_fd);
 
           FD_CLR(candidate_fd, &readfds);        // lo sacamos del set de file descriptors de lectura
@@ -154,7 +155,7 @@ int aceptar_conexion(int socket) {
 //   Atiende al cliente
 //   Implementa el protocolo de comunicación
 // ----------------------------------------------------------------------------
-int atender_cliente(int socket) {
+int protocolo_http(int socket) {
   char buffer[READ_BUFFER_SIZE];
   bzero(buffer, READ_BUFFER_SIZE);
 
@@ -163,15 +164,28 @@ int atender_cliente(int socket) {
 
   printf("server>> Recibido: %s", buffer);  // Este no lleva "\n" al final porque tenemos el \n en el buffer
 
-  // PROTOCOLO: Si recibo QUIT hay que desconectar y decir "Chau chau!!"
-  if(strncmp(buffer, "quit", 4) == 0 || strncmp(buffer, "QUIT", 4) == 0) {
-    write(socket, "Chau chau!!\n", 12);
-    return -1;
-  }
+  //  El cliente envió un GET
+  if(strncmp(buffer, "GET", 3) == 0) {
+    printf("server >> Recibido GET\n");
+    if(strncmp(buffer, "GET / ", 6) == 0) {
+      char* response = "HTTP/1.1 200 OK\n\nHello there!\n";
+      printf("server >> Enviando respuesta: %s", response);
 
-  // PROTOCOLO: Si recibo PING devuelvo PONG
-  if(strncmp(buffer, "ping", 4) == 0 || strncmp(buffer, "PING", 4) == 0)
-    write(socket, "PONG\n", 5);
+      write(socket, response, strlen(response));
+    }
+
+    if(strncmp(buffer, "GET /image.jpg", 14) == 0) {
+      char response_buffer[RESPONSE_BUFFER_SIZE];
+      bzero(response_buffer, RESPONSE_BUFFER_SIZE);
+
+      char* file_buffer = NULL;
+      long file_size = leer_archivo("image.jpg", &file_buffer);
+      sprintf(response_buffer, "HTTP/1.1 200 OK\nServer: Moncholate\nContent-Type: image/jpeg\nContent-Length: %ld\n\n", file_size);
+
+      write(socket, response_buffer, strlen(response_buffer)); // devuelve los headers
+      write(socket, file_buffer, file_size);                   // devuelve la imagen
+    }
+  }
 
   return 0;
 }
@@ -220,4 +234,28 @@ void udp_heartbeat() {
 
     sendto(udp_server_fd, "ALIVE\n", 6, 0, (struct sockaddr*)&client_addr, client_addr_len);
   }
+}
+
+//  Lee un archivo y lo guarda en file_content y devuelve el file_size
+long leer_archivo(char* file_name, char** file_content) {
+  FILE *fp = fopen(file_name, "rb");
+  if(fp == NULL) {
+    printf("server>> ERROR, no pude abrir el archivo %s\n", file_name);
+    exit(-1);
+  }
+
+  fseek(fp, 0, SEEK_END);       // seteo el puntero al final
+  long file_size = ftell(fp);   // traigo la posición del puntero (tamaño del file)
+  fseek(fp, 0, SEEK_SET);       // vuelvo el puntero para adelante
+
+  *file_content = malloc(file_size);
+  if (*file_content == NULL) {
+    printf("server>> ERROR, no pude reservar la memoria suficiente para el archivo\n");
+    exit(-2);
+  }
+
+  fread(*file_content, 1, file_size, fp);
+  fclose(fp);
+
+  return file_size;
 }
