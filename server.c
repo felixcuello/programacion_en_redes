@@ -166,15 +166,15 @@ int protocolo_http(int socket) {
 
   //  El cliente envió un GET
   if(strncmp(buffer, "GET", 3) == 0) {
-    printf("server >> Recibido GET\n");
+    printf("server >> recibido GET ");
     if(strncmp(buffer, "GET / ", 6) == 0) {
-      char* response = "HTTP/1.1 200 OK\n\nHello there!\n";
-      printf("server >> Enviando respuesta: %s", response);
+      printf("/\n");
+
+      char* response = "HTTP/1.1 200 OK\nServer: Moncholate\nContent-Type: text/plain\n\nHello there!\n";
 
       write(socket, response, strlen(response));
-    }
-
-    if(strncmp(buffer, "GET /image.jpg", 14) == 0) {
+    } else if(strncmp(buffer, "GET /image.jpg", 14) == 0) {
+      printf("/image.jpg\n");
       char response_buffer[RESPONSE_BUFFER_SIZE];
       bzero(response_buffer, RESPONSE_BUFFER_SIZE);
 
@@ -184,7 +184,15 @@ int protocolo_http(int socket) {
 
       write(socket, response_buffer, strlen(response_buffer)); // devuelve los headers
       write(socket, file_buffer, file_size);                   // devuelve la imagen
+
+      free(file_buffer);                                       // liberamos la memoria para evitar memory leaks
+    } else {
+      // NO pidas otra cosa porque no hay
+      char* response = "HTTP/1.1 404 NOT FOUND\nServer: Moncholate\nContent-Type: text/plain\n\n";
+      write(socket, response, strlen(response));
     }
+  } else {
+    return -1;   // No hay implementado ningún otro verbo HTTP que no sea GET
   }
 
   return 0;
@@ -224,12 +232,14 @@ void udp_heartbeat() {
                                   0,                                 // Estos son flags (pero no los usamos)
                                   (struct sockaddr*)&client_addr,    // Datos del cliente
                                   &client_addr_len);                 // Tamaño de la estructura que almacena los datos del cliente
+                                                                     //
+    printf("server_udp_heartbeat>> Recibido %s", buffer);
+
     if(bytes_read <= 0) {
-      printf("server_udp_heatbeat>> INICIADO\n");
+      printf("server_udp_heatbeat>> no hubo nada para leer\n");
       continue; // No hubo nada para leer
     }
 
-    printf("server_udp_heartbeat>> Recibido %s", buffer);
     printf("server_udp_heartbeat>> Sending ALIVE\n");
 
     sendto(udp_server_fd, "ALIVE\n", 6, 0, (struct sockaddr*)&client_addr, client_addr_len);
@@ -237,6 +247,11 @@ void udp_heartbeat() {
 }
 
 //  Lee un archivo y lo guarda en file_content y devuelve el file_size
+//
+//  WARNING:
+//  Crear memoria en una función no es una buena práctica porque le delegamos
+//  la responsabilidad de liberar la memoria a quien haya llamado esta función.
+//
 long leer_archivo(char* file_name, char** file_content) {
   FILE *fp = fopen(file_name, "rb");
   if(fp == NULL) {
