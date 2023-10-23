@@ -117,15 +117,14 @@ int main(int argc, char** argv) {
 
         max_fd = new_fd > max_fd ? new_fd : max_fd;
       } else {
-        // DESCONEXION!, el cliente se desconectó o hubo un error
-        if(protocolo_http(candidate_fd) < 0) {
-          printf("server>> Cliente desconectado  (file_descriptor %d)\n", candidate_fd);
+        if(protocolo_http(candidate_fd) < 0)
+          printf("server>> Cliente desconectado\n");
 
-          FD_CLR(candidate_fd, &readfds);        // lo sacamos del set de file descriptors de lectura
-          close(candidate_fd);                   // cerramos el file descriptor
-          if(candidate_fd == max_fd) max_fd--;   // Cambiamos el max_fd solo si fue el que se desconetó
-          continue;                              // Siga, siga lamolina
-        }
+        FD_CLR(candidate_fd, &readfds);        // lo sacamos del set de file descriptors de lectura
+        if(candidate_fd == max_fd) max_fd--;   // Cambiamos el max_fd solo si fue el que se desconetó
+
+        close(candidate_fd);
+        continue;
       }
     }
   }
@@ -191,8 +190,6 @@ int protocolo_http(int socket) {
       char* response = "HTTP/1.1 404 NOT FOUND\nServer: Moncholate\nContent-Type: text/plain\n\n";
       write(socket, response, strlen(response));
     }
-  } else {
-    return -1;   // No hay implementado ningún otro verbo HTTP que no sea GET
   }
 
   return 0;
