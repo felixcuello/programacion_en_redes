@@ -16,8 +16,8 @@ all:
 
 tp: clean client alive_client server
 
-server: clean_server
-	$(CC) $(CFLAGS) server.c -o server
+server: clean_server threadpool.o
+	$(CC) $(CFLAGS) server.c -o server threadpool.o
 
 client: clean_client
 	$(CC) $(CFLAGS) client.c -o client
@@ -29,10 +29,14 @@ alive_client: clean_alive_client
 tarea1: tarea1.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -o tarea1 tarea1.c
 
+threadpool.o: threadpool.c
+	$(CC) $(CFLAGS) $(LDFLAGS) -c -o threadpool.o threadpool.c
+
 clean_server:
 	@echo "🧹 Cleaning Server 🧹"
 	@rm -f server
 	@rm -rf server.DSYM
+	@rm -f threadpool.o
 
 clean_client:
 	@echo "🧹 Cleaning Client 🧹"

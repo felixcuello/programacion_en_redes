@@ -124,7 +124,6 @@ int main(int argc, char** argv) {
         if(candidate_fd == max_fd) max_fd--;   // Cambiamos el max_fd solo si fue el que se desconetó
 
         close(candidate_fd);
-        continue;
       }
     }
   }
@@ -180,6 +179,19 @@ int protocolo_http(int socket) {
       char* file_buffer = NULL;
       long file_size = leer_archivo("image.jpg", &file_buffer);
       sprintf(response_buffer, "HTTP/1.1 200 OK\nServer: Moncholate\nContent-Type: image/jpeg\nContent-Length: %ld\n\n", file_size);
+
+      write(socket, response_buffer, strlen(response_buffer)); // devuelve los headers
+      write(socket, file_buffer, file_size);                   // devuelve la imagen
+
+      free(file_buffer);                                       // liberamos la memoria para evitar memory leaks
+    } else if(strncmp(buffer, "GET /favicon.ico", 16) == 0) {
+      printf("/favicon.ico\n");
+      char response_buffer[RESPONSE_BUFFER_SIZE];
+      bzero(response_buffer, RESPONSE_BUFFER_SIZE);
+
+      char* file_buffer = NULL;
+      long file_size = leer_archivo("favicon.ico", &file_buffer);
+      sprintf(response_buffer, "HTTP/1.1 200 OK\nServer: Moncholate\nContent-Type: image/vnd\nContent-Length: %ld\n\n", file_size);
 
       write(socket, response_buffer, strlen(response_buffer)); // devuelve los headers
       write(socket, file_buffer, file_size);                   // devuelve la imagen
