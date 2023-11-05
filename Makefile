@@ -1,6 +1,6 @@
 CC=gcc                    # Compilador
 CFLAGS=-g -Wall						# Deugger + All warnings
-LDFLAGS=-lcurses          # Bibliotecas que tengo que linkear
+LDFLAGS=-lthreadpool      # Bibliotecas que tengo que linkear
 
 all:
 	@echo "-----------------------------------------------------------------------"
@@ -27,7 +27,7 @@ alive_client: clean_alive_client
 
 # Tarea 1 -> Ver los comentarios adentro de tarea1.c
 tarea1: tarea1.c
-	$(CC) $(CFLAGS) $(LDFLAGS) -o tarea1 tarea1.c
+	$(CC) $(CFLAGS) -lcurses -o tarea1 tarea1.c
 
 threadpool.o: threadpool.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -c -o threadpool.o threadpool.c

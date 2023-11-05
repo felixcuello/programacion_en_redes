@@ -123,6 +123,7 @@ int main(int argc, char** argv) {
         FD_CLR(candidate_fd, &readfds);        // lo sacamos del set de file descriptors de lectura
         if(candidate_fd == max_fd) max_fd--;   // Cambiamos el max_fd solo si fue el que se desconetó
 
+        printf("server>> cerrando socket\n");
         close(candidate_fd);
       }
     }
@@ -168,7 +169,7 @@ int protocolo_http(int socket) {
     if(strncmp(buffer, "GET / ", 6) == 0) {
       printf("/\n");
 
-      char* response = "HTTP/1.1 200 OK\nServer: Moncholate\nContent-Type: text/plain\n\nHello there!\n";
+      char* response = "HTTP/1.1 200 OK\nServer: Moncholate\nContent-Type: text/plain\nConnection: close\n\nHello there!\n";
 
       write(socket, response, strlen(response));
     } else if(strncmp(buffer, "GET /image.jpg", 14) == 0) {
@@ -178,7 +179,11 @@ int protocolo_http(int socket) {
 
       char* file_buffer = NULL;
       long file_size = leer_archivo("image.jpg", &file_buffer);
-      sprintf(response_buffer, "HTTP/1.1 200 OK\nServer: Moncholate\nContent-Type: image/jpeg\nContent-Length: %ld\n\n", file_size);
+      sprintf(response_buffer, "HTTP/1.1 200 OK\n"
+                               "Server: Moncholate\n"
+                               "Content-Type: image/jpeg\n"
+                               "Content-Length: %ld\n"
+                               "Connection: close\n\n", file_size);
 
       write(socket, response_buffer, strlen(response_buffer)); // devuelve los headers
       write(socket, file_buffer, file_size);                   // devuelve la imagen
@@ -191,7 +196,10 @@ int protocolo_http(int socket) {
 
       char* file_buffer = NULL;
       long file_size = leer_archivo("favicon.ico", &file_buffer);
-      sprintf(response_buffer, "HTTP/1.1 200 OK\nServer: Moncholate\nContent-Type: image/vnd\nContent-Length: %ld\n\n", file_size);
+      sprintf(response_buffer, "HTTP/1.1 200 OK\n"
+                               "Server: Moncholate\n"
+                               "Content-Type: image/vnd\n"
+                               "Content-Length: %ld\n\n", file_size);
 
       write(socket, response_buffer, strlen(response_buffer)); // devuelve los headers
       write(socket, file_buffer, file_size);                   // devuelve la imagen
