@@ -7,6 +7,7 @@
 #include <string.h>     // strncmp
 #include <sys/socket.h> // socket, bind, listen, accept
 #include <unistd.h>     // write
+#include <poll.h>       // poll
 
 
 //   Algunas constantes para evitar hardcodear valores en el código
@@ -14,7 +15,6 @@
 #define TRUE                       1   // Esto es para que quede más lindo cosas como while(TRUE)
 #define LISTEN_QUEUE_SIZE          2   // Maxima cola de clientes que vamos a aceptar
 #define MAX_CONNECTIONS          100   // Cantidad máxima de conexiones que vamos a aceptar
-#define NUMBER_OF_SYSTEM_FDS       3   // STDIN, STDOUT, STDERR
 #define READ_BUFFER_SIZE        1024   // Tamaño del buffer de lectura
 #define RESPONSE_BUFFER_SIZE  100000   // Tamaño del buffer de respuesta (1MB)
 #define HEARTBEAT_UDP_PORT      4321   // Puerto usado para el heartbeat
@@ -79,57 +79,74 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-
   printf("========================================================\n");
   printf("  SERVER INICIADO (escuchando en el puerto: %d)\n", port);
   printf("========================================================\n");
 
+  struct pollfd fds[MAX_CONNECTIONS];   // Array de file descriptors
+  int nfds = 1;                         // Número de file descriptors
+  memset(fds, 0, sizeof(fds));          // Inicializamos todo el array en 0
 
-  fd_set readfds;                   // Set de file descriptors de lectura (o nuevos)
-  FD_ZERO(&readfds);                // Inicializo el set de file descriptors
+  fds[0].fd = server_socket;            // Agrego el server socket a la lista
+  fds[0].events = POLLIN;               // Sólo me interesan los eventos de lectura
 
-  fd_set tempreadfds;
-  FD_SET(server_socket, &readfds);  // Agrego el socket del server al set
+  int timeout_ms = 5000;                // El timeout del poll es de 1 segundo
 
-  struct timeval timeout;           // Timeout para el select
-  timeout.tv_sec = 2;
-  timeout.tv_usec = 500000;
-
-  int max_fd = server_socket;
   while(TRUE) {
-    tempreadfds = readfds;
+    printf("Cantidad de File Descriptors activos = %d\n", nfds);
 
-    // Ejemplo: select(nfds, readfds, writefds, errorfds, &timeout);
-    int fd_ready = select(max_fd + 1, &tempreadfds, NULL, NULL, &timeout);
+    int poll_count = poll(fds, nfds, timeout_ms);
 
-    if(fd_ready == -1) { printf("Error: select()\n"); return 1; }
+    // De la documentación del man
+    // poll() returns the number of descriptors that are ready for I/O, or -1 if an error occurred
+    if(poll_count < 0) {
+      printf("server>> ERROR en el poll()\n");
+      return 1;
+    }
 
     // Arranco de 3, para no monitorear STDIN, STDOUT o STDERR
-    for(int candidate_fd=NUMBER_OF_SYSTEM_FDS; candidate_fd <= max_fd; candidate_fd++) {
-      if(!FD_ISSET(candidate_fd, &tempreadfds)) continue; // En este file descriptor no hay nada nuevo
+    for(int candidate_fd=0; candidate_fd < nfds; candidate_fd++) {
+      if(fds[candidate_fd].revents == 0) continue; // No hay eventos para este file descriptor
 
-      printf("server>> Evento en el file descriptor %d\n", candidate_fd);
+      printf("server>> Evento en el file descriptor %d\n", fds[candidate_fd].fd);
 
-      if(candidate_fd == server_socket) {
-        // Si es el server_socket => hay una nueva conexión
+      if(fds[candidate_fd].revents != POLLIN) {
+        printf("server>> ERROR, Me llegó un evento que no era de POLLIN %d\n", fds[candidate_fd].revents);
+        continue;
+      }
+
+      if(fds[candidate_fd].fd == server_socket) {
         int new_fd = aceptar_conexion(server_socket);
-        FD_SET(new_fd, &readfds);
-
-        max_fd = new_fd > max_fd ? new_fd : max_fd;
+        fds[nfds].fd = new_fd;
+        fds[nfds].events = POLLIN;
+        nfds++;
       } else {
-        if(protocolo_http(candidate_fd) < 0)
+        if(protocolo_http(fds[candidate_fd].fd) < 0)
           printf("server>> Cliente desconectado\n");
 
-        FD_CLR(candidate_fd, &readfds);        // lo sacamos del set de file descriptors de lectura
-        if(candidate_fd == max_fd) max_fd--;   // Cambiamos el max_fd solo si fue el que se desconetó
+        close(fds[candidate_fd].fd);
 
-        printf("server>> cerrando socket\n");
-        close(candidate_fd);
+        fds[candidate_fd].fd = -1;
+        fds[candidate_fd].events = 0;
+        fds[candidate_fd].revents = 0;
+      }
+
+      for(int i=0; i<nfds; i++) {
+        if(fds[i].fd == -1) {
+          for(int j=i; j<nfds-1; j++) {
+            fds[j].fd = fds[j+1].fd;
+            fds[j].events = fds[j+1].events;
+            fds[j].revents = fds[j+1].revents;
+          }
+          // i--; // Revisar si no debería dejar esto
+          nfds--;
+        }
       }
     }
   }
 
-  // Aca no va a llegar nunca
+  // Aca no va a llegar nunca, pero lo dejo porque en realidad el while(TRUE) debería
+  // ser un while(running) y con los errores fatales debería setear running en FALSE
   close(server_socket);
   printf("server>> Server finalizado\n");
 
@@ -185,6 +202,8 @@ int protocolo_http(int socket) {
                                "Content-Length: %ld\n"
                                "Connection: close\n\n", file_size);
 
+      // TODO: En realidad esto lo hice sin ver el ejemplo. Según lo que vi habría que hacer
+      //       "sendfile" , para no tener que tener un buffer del tamaño de la imagen
       write(socket, response_buffer, strlen(response_buffer)); // devuelve los headers
       write(socket, file_buffer, file_size);                   // devuelve la imagen
 
